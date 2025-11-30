@@ -38,9 +38,12 @@ def build_message():
     # Fetch data for all locations
     for loc in LOCATIONS:
         data = fetch_weather(loc["lat"], loc["lon"])
-        times = data["hourly"]["time"]
-        temps = data["hourly"]["temperature_2m"]
-        rains = data["hourly"]["precipitation_probability"]
+
+        # Safely get hourly data
+        hourly = data.get("hourly", {})
+        times = hourly.get("time", [])
+        temps = hourly.get("temperature_2m", [])
+        rains = hourly.get("precipitation_probability", [])
 
         filtered_times = []
         filtered_temps = []
@@ -51,8 +54,8 @@ def build_message():
                 hour = int(times[i][11:13])
                 if 8 <= hour <= 20:
                     filtered_times.append(times[i])
-                    filtered_temps.append(temps[i])
-                    filtered_rains.append(rains[i])
+                    filtered_temps.append(temps[i] if i < len(temps) else None)
+                    filtered_rains.append(rains[i] if i < len(rains) else None)
                     if rains[i] >= 30:
                         will_rain = True
 
@@ -70,12 +73,13 @@ def build_message():
         msg += f"{loc['name']}:\n"
         for i in range(len(loc["times"])):
             time_str = loc["times"][i][11:16]
-            temp = round(loc["temps"][i])
-            rain = round(loc["rains"][i])
+            temp = round(loc["temps"][i]) if loc["temps"][i] is not None else "N/A"
+            rain = round(loc["rains"][i]) if loc["rains"][i] is not None else "N/A"
             msg += f"{time_str} - {temp}°C, {rain}%\n"
         msg += "\n"
 
     return msg
+
 
 async def main():
     """Run a daily loop that sends the weather message at 06:00 Asia/Manila every day.
@@ -119,7 +123,7 @@ async def main():
                 # Small delay to avoid tight retry loop if send keeps failing
                 await asyncio.sleep(10)
 
-            # Loop will automatically schedule for the next day's 06:00
+    # Loop will automatically schedule for the next day's 06:00
     except KeyboardInterrupt:
         print("Stopped by user (KeyboardInterrupt)")
 
